@@ -9,7 +9,7 @@ TAG="# FTP_BACKUP"
 RAW_SCRIPT_PATH="$(readlink -f "$0" 2>/dev/null || realpath "$0" 2>/dev/null || echo "$0")"
 SCRIPT_PATH="$RAW_SCRIPT_PATH"
 
-SCRIPT_URL="https://raw.githubusercontent.com/hiapb/ftp/main/back.sh"
+SCRIPT_URL="https://raw.githubusercontent.com/immiskae/test/main/test.sh"
 INSTALL_PATH="/root/back.sh"
 
 mkdir -p "$ACCOUNTS_DIR"
