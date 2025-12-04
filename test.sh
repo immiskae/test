@@ -19,10 +19,8 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
-# 如果是通过 bash <(curl ...) 这种方式运行，自动落盘到 INSTALL_PATH
 normalize_script_path() {
     if [[ "$SCRIPT_PATH" == /dev/fd/* ]] || [[ "$SCRIPT_PATH" == /proc/*/fd/* ]] || [[ "$SCRIPT_PATH" == *"pipe:"* ]]; then
-        # 如果还没有正式安装文件，就自动创建一个
         if [[ ! -f "$INSTALL_PATH" ]]; then
             echo "📥 检测到通过 bash <(curl ...) 运行，正在自动安装脚本到：$INSTALL_PATH"
             if command_exists curl; then
@@ -98,7 +96,6 @@ ensure_command() {
 }
 
 check_dependencies() {
-    # lftp：各大发行版包名基本一样
     ensure_command lftp lftp lftp lftp || exit 1
 
     # crontab：Debian 系 cron，RHEL 系 cronie
@@ -145,14 +142,14 @@ proto_to_type() {
 
 add_ftp_account() {
     echo "────────────────────────────────"
-    echo "➕ 新增 FTP/FTPS/SFTP 账号"
+    echo "➕ 新增 FTP/SFTP 账号"
     echo "────────────────────────────────"
 
     # 1️⃣ 先选协议类型
     echo "🔐 请选择连接类型："
-    echo "  1) FTP  （明文，默认端口 21）"
-    echo "  2) FTPS （FTP over TLS，加密，默认端口 21 或 990）"
-    echo "  3) SFTP （基于 SSH，加密，默认端口 22）"
+    echo "  1) FTP"
+    echo "  2) FTPS"
+    echo "  3) SFTP"
     read -rp "👉 请输入选项编号（默认 1）： " proto_choice
     case "$proto_choice" in
         2) FTP_PROTO="ftps" ;;
@@ -194,9 +191,9 @@ add_ftp_account() {
     read -rp "🔒 密码： " FTP_PASS
 
     # 为了能安全写进双引号里，需要先转义 \ " $
-    ESCAPED_PASS=${FTP_PASS//\\/\\\\}    # 先转义反斜杠 \
-    ESCAPED_PASS=${ESCAPED_PASS//\"/\\\"} # 再转义双引号 "
-    ESCAPED_PASS=${ESCAPED_PASS//$/\\$}   # 最后转义美元符号 $
+    ESCAPED_PASS=${FTP_PASS//\\/\\\\}   
+    ESCAPED_PASS=${ESCAPED_PASS//\"/\\\"} 
+    ESCAPED_PASS=${ESCAPED_PASS//$/\\$} 
 
     cat > "$file" <<EOF
 ACCOUNT_ID="$ACCOUNT_ID"
@@ -338,7 +335,7 @@ select_ftp_account() {
     return 0
 }
 
-# 小工具：根据协议生成 lftp 里的 SSL 配置（仅 FTP/FTPS 用）
+
 build_ssl_lines() {
     local proto="$1"
     if [[ "$proto" == "ftps" ]]; then
@@ -351,7 +348,7 @@ build_ssl_lines() {
     fi
 }
 
-# 小工具：SFTP 专用配置（自动确认 host key + 基本超时 + 禁用 known_hosts）
+
 build_sftp_lines() {
     local proto="$1"
     if [[ "$proto" == "sftp" ]]; then
@@ -366,9 +363,6 @@ build_sftp_lines() {
     fi
 }
 
-# 根据协议决定 lftp 连接目标
-# ftp / ftps: 直接用主机名
-# sftp: 使用 sftp://host
 get_lftp_target() {
     local proto="$1"
     local host="$2"
@@ -490,7 +484,7 @@ EOF
 
                 mkdir -p "$LDIR"
 
-                read -rp "⚠️ 确认 mirror 下载整个目录 $RDIR 到本地 $LDIR 吗？(y/N)： " yn_dir
+                read -rp "⚠️ 确认 下载整个目录 $RDIR 到本地 $LDIR 吗？(y/N)： " yn_dir
                 case "$yn_dir" in
                     y|Y)
                         SSL_LINES="$(build_ssl_lines "$FTP_PROTO")"
@@ -915,7 +909,7 @@ uninstall_all() {
 show_menu() {
     clear
     echo "======================================="
-    echo "🌐 FTP/FTPS/SFTP 备份工具（多账号版）"
+    echo "🌐 FTP/SFTP 备份工具（多账号版）"
     echo "======================================="
     echo
     local count
