@@ -406,7 +406,7 @@ EOF
                 pause
                 ;;
             2)
-                read -rp "📂 请输入远程文件所在目录（例如 /backup/www，账号根目录请输入 /）： " RDIR
+                read -rp "📂 请输入远程文件所在目录（例如 / 或 /backup/www）： " RDIR
                 read -rp "📄 请输入远程文件名（例如 index.html）： " RFN
                 read -rp "📁 请输入下载到本地的目录（例如 /root/download）： " LDIR
 
@@ -464,7 +464,7 @@ EOF
                 esac
                 ;;
             3)
-                read -rp "📂 请输入要下载的远程目录路径（例如 /test,根目录请输入 /）： " RDIR
+                read -rp "📂 请输入要下载的远程目录路径（例如 / 或 /test）： " RDIR
                 read -rp "📁 请输入下载到本地的目录（例如 /root/download）： " LDIR
 
                 if [[ -z "$RDIR" || -z "$LDIR" ]]; then
@@ -514,7 +514,7 @@ EOF
                 esac
                 ;;
             4)
-                read -rp "📂 请输入文件所在远程目录（例如 /backup/www,根目录请输入 /）： " REMOTE_DIR
+                read -rp "📂 请输入文件所在远程目录（例如 / 或 /backup/www）： " REMOTE_DIR
                 read -rp "📄 请输入要删除的文件名（例如 index.html）： " REMOTE_FILE
 
                 if [[ -z "$REMOTE_FILE" ]]; then
@@ -524,7 +524,7 @@ EOF
                 fi
 
                 if [[ -z "$REMOTE_DIR" ]]; then
-                    echo "❌ 目录不能为空（根目录，请输入 /）。"
+                    echo "❌ 目录不能为空。"
                     pause
                     continue
                 fi
@@ -558,7 +558,7 @@ $SSL_VERIFY_LINE
 $SSL_LINES
 $SFTP_LINES
 $CD_CMD
-rm "$REMOTE_FILE"
+rm -r "$REMOTE_FILE"
 bye
 EOF
                         if [[ $? -eq 0 ]]; then
@@ -575,7 +575,7 @@ EOF
                 esac
                 ;;
             5)
-                read -rp "📂 请输入要删除的远程目录（例如 /backup/tmp，账号根目录不可删除）： " REMOTE_DIR
+                read -rp "📂 请输入要删除的远程目录（例如 / 或 /backup/tmp）： " REMOTE_DIR
                 if [[ -z "$REMOTE_DIR" ]]; then
                     echo "❌ 远程目录不能为空。"
                     pause
