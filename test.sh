@@ -159,8 +159,8 @@ add_ftp_account() {
 
     echo
     echo "🔐 请选择连接协议："
-    echo "  1) 普通 FTP（明文，兼容最好）"
-    echo "  2) 加密 FTPS（FTP over TLS，前提是服务器支持）"
+    echo "  1) 普通 FTP"
+    echo "  2) 加密 FTPS"
     read -rp "👉 请输入选项编号（默认 1）： " proto_choice
     case "$proto_choice" in
         2) FTP_PROTO="ftps" ;;
