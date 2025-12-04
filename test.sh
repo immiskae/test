@@ -145,14 +145,14 @@ proto_to_type() {
 
 add_ftp_account() {
     echo "────────────────────────────────"
-    echo "➕ 新增 FTP/SFTP 账号"
+    echo "➕ 新增 FTP/FTPS/SFTP 账号"
     echo "────────────────────────────────"
 
     # 1️⃣ 先选协议类型
     echo "🔐 请选择连接类型："
-    echo "  1) FTP "
-    echo "  2) FTPS "
-    echo "  3) SFTP "
+    echo "  1) FTP  （明文，默认端口 21）"
+    echo "  2) FTPS （FTP over TLS，加密，默认端口 21 或 990）"
+    echo "  3) SFTP （基于 SSH，加密，默认端口 22）"
     read -rp "👉 请输入选项编号（默认 1）： " proto_choice
     case "$proto_choice" in
         2) FTP_PROTO="ftps" ;;
@@ -351,7 +351,7 @@ build_ssl_lines() {
     fi
 }
 
-# 小工具：SFTP 专用配置（自动确认 host key + 基本超时）
+# 小工具：SFTP 专用配置（自动确认 host key + 基本超时 + 禁用 known_hosts）
 build_sftp_lines() {
     local proto="$1"
     if [[ "$proto" == "sftp" ]]; then
@@ -359,7 +359,8 @@ build_sftp_lines() {
             "set sftp:auto-confirm yes" \
             "set net:timeout 15" \
             "set net:max-retries 2" \
-            "set net:persist-retries 0"
+            "set net:persist-retries 0" \
+            "set sftp:connect-program \"ssh -a -x -p $FTP_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null\""
     else
         :
     fi
@@ -449,7 +450,7 @@ EOF
                 read -rp "⚠️ 确认下载文件 $RDIR/$RFN 到本地 $LDIR 并自动覆盖同名文件吗？(y/N)： " yn_dl
                 case "$yn_dl" in
                     y|Y)
-                        SSL_LINES="$(build_ssl_lines "$FTP_PROTO")"
+                        SSL_LINES="$(build_ssl_lines("$FTP_PROTO") )"
                         SFTP_LINES="$(build_sftp_lines "$FTP_PROTO")"
                         LFTP_TARGET="$(get_lftp_target "$FTP_PROTO" "$FTP_HOST")"
                         SSL_VERIFY_LINE=""
@@ -914,7 +915,7 @@ uninstall_all() {
 show_menu() {
     clear
     echo "======================================="
-    echo "🌐 FTP/SFTP 备份工具（多账号版）测试"
+    echo "🌐 FTP/FTPS/SFTP 备份工具（多账号版）"
     echo "======================================="
     echo
     local count
