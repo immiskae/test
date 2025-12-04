@@ -105,7 +105,7 @@ check_dependencies() {
     ensure_command crontab cron cronie cron || true
 }
 
-# ===================== FTP 账号管理 =====================
+# ===================== 账号管理 =====================
 is_ftp_configured() {
     shopt -s nullglob
     local files=("$ACCOUNTS_DIR"/*.conf)
@@ -124,7 +124,7 @@ load_ftp_account() {
     local account_id="$1"
     local file="$ACCOUNTS_DIR/$account_id.conf"
     if [[ ! -f "$file" ]]; then
-        echo "❌ 找不到 FTP 账号配置：$account_id"
+        echo "❌ 找不到账号配置：$account_id"
         return 1
     fi
     # shellcheck disable=SC1090
@@ -133,12 +133,38 @@ load_ftp_account() {
     FTP_PROTO="${FTP_PROTO:-ftp}"
 }
 
+proto_to_type() {
+    local proto="$1"
+    case "$proto" in
+        ftp)  echo "FTP" ;;
+        ftps) echo "FTPS" ;;
+        sftp) echo "SFTP" ;;
+        *)    echo "$proto" ;;
+    esac
+}
+
 add_ftp_account() {
     echo "────────────────────────────────"
-    echo "➕ 新增 FTP/SFTP 账号"
+    echo "➕ 新增 FTP/FTPS/SFTP 账号"
     echo "────────────────────────────────"
+
+    # 1️⃣ 先选协议类型
+    echo "🔐 请选择连接类型："
+    echo "  1) FTP"
+    echo "  2) FTPS"
+    echo "  3) SFTP"
+    read -rp "👉 请输入选项编号（默认 1）： " proto_choice
+    case "$proto_choice" in
+        2) FTP_PROTO="ftps" ;;
+        3) FTP_PROTO="sftp" ;;
+        *) FTP_PROTO="ftp" ;;
+    esac
+    local TYPE_LABEL
+    TYPE_LABEL="$(proto_to_type "$FTP_PROTO")"
+
+    # 2️⃣ 起一个账号名字
     read -rp "📝 为此账号起一个名称（例如 main、backup1）： " ACCOUNT_ID
-    ACCOUNT_ID="${ACCOUNT_ID// /_}"  # 名称里如果有空格，替换成下划线
+    ACCOUNT_ID="${ACCOUNT_ID// /_}"
 
     if [[ -z "$ACCOUNT_ID" ]]; then
         echo "❌ 账号名称不能为空。"
@@ -151,30 +177,19 @@ add_ftp_account() {
         echo "⚠️  已存在同名账号配置，将覆盖该账号。"
     fi
 
+    # 3️⃣ 填主机
     read -rp "🌐 远程主机 (例如 ftp.example.com 或 sftp.example.com)： " FTP_HOST
 
-    echo
-    echo "🔐 请选择连接协议："
-    echo "  1) 普通 FTP"
-    echo "  2) 加密 FTPS"
-    echo "  3) SFTP (基于 SSH，默认端口 22)"
-    read -rp "👉 请输入选项编号（默认 1）： " proto_choice
-    case "$proto_choice" in
-        2) FTP_PROTO="ftps" ;;
-        3) FTP_PROTO="sftp" ;;
-        *) FTP_PROTO="ftp" ;;
-    esac
-
-    # 根据协议给出不同默认端口
+    # 4️⃣ 端口默认值根据类型来
     local default_port
     case "$FTP_PROTO" in
         sftp) default_port=22 ;;
         *)    default_port=21 ;;
     esac
-
     read -rp "🔢 远程端口 (默认 $default_port，回车使用默认)： " FTP_PORT
     FTP_PORT=${FTP_PORT:-$default_port}
 
+    # 5️⃣ 用户名 & 密码
     read -rp "👤 用户名： " FTP_USER
     read -rp "🔒 密码： " FTP_PASS
 
@@ -188,13 +203,13 @@ FTP_PROTO="$FTP_PROTO"
 EOF
 
     chmod 600 "$file"
-    echo "✅ 新账号已保存：$ACCOUNT_ID （协议：$FTP_PROTO，端口：$FTP_PORT）"
+    echo "✅ 新账号已保存：$ACCOUNT_ID （类型：$TYPE_LABEL，主机：$FTP_HOST，端口：$FTP_PORT）"
     pause
 }
 
 show_ftp_accounts() {
     echo "────────────────────────────────"
-    echo "📂 FTP/SFTP 账号列表"
+    echo "📂 账号列表"
     echo "────────────────────────────────"
 
     shopt -s nullglob
@@ -212,7 +227,9 @@ show_ftp_accounts() {
         # shellcheck disable=SC1090
         source "$f"
         local proto="${FTP_PROTO:-ftp}"
-        echo "[$i] 账号名：$ACCOUNT_ID  | 主机：$FTP_HOST  | 端口：$FTP_PORT  | 用户：$FTP_USER  | 协议：$proto"
+        local type
+        type="$(proto_to_type "$proto")"
+        echo "[$i] 账号名：$ACCOUNT_ID  | 类型：$type  | 主机：$FTP_HOST  | 端口：$FTP_PORT  | 用户：$FTP_USER"
         i=$((i+1))
     done
 
@@ -221,7 +238,7 @@ show_ftp_accounts() {
 
 delete_ftp_account() {
     echo "────────────────────────────────"
-    echo "🗑 删除 FTP/SFTP 账号"
+    echo "🗑 删除账号"
     echo "────────────────────────────────"
 
     shopt -s nullglob
@@ -240,7 +257,9 @@ delete_ftp_account() {
         # shellcheck disable=SC1090
         source "$f"
         ACCOUNT_IDS[$i]="$ACCOUNT_ID"
-        echo "[$i] 账号名：$ACCOUNT_ID  | 主机：$FTP_HOST"
+        local type
+        type="$(proto_to_type "${FTP_PROTO:-ftp}")"
+        echo "[$i] 账号名：$ACCOUNT_ID  | 类型：$type  | 主机：$FTP_HOST"
         i=$((i+1))
     done
 
@@ -262,7 +281,6 @@ delete_ftp_account() {
                 local current
                 current=$(crontab -l 2>/dev/null || true)
                 if [[ -n "$current" ]]; then
-                    # 每个任务尾部会有 # FTP_BACKUP[account_id]
                     echo "$current" | grep -v "$TAG\[$target_id\]" | crontab -
                 fi
             fi
@@ -288,7 +306,7 @@ select_ftp_account() {
     fi
 
     echo "────────────────────────────────"
-    echo "📂 可用 FTP/SFTP 账号列表："
+    echo "📂 可用账号列表："
     echo "────────────────────────────────"
 
     local i=1
@@ -297,8 +315,10 @@ select_ftp_account() {
         # shellcheck disable=SC1090
         source "$f"
         local proto="${FTP_PROTO:-ftp}"
+        local type
+        type="$(proto_to_type "$proto")"
         ACCOUNT_IDS[$i]="$ACCOUNT_ID"
-        echo "[$i] 账号名：$ACCOUNT_ID  | 主机：$FTP_HOST:$FTP_PORT  | 协议：$proto"
+        echo "[$i] 账号名：$ACCOUNT_ID  | 类型：$type  | 主机：$FTP_HOST:$FTP_PORT"
         i=$((i+1))
     done
 
@@ -317,13 +337,11 @@ select_ftp_account() {
 build_ssl_lines() {
     local proto="$1"
     if [[ "$proto" == "ftps" ]]; then
-        # 显式 FTPS（FTP over TLS）
         printf '%s\n' \
             "set ftp:ssl-force true" \
             "set ftp:ssl-protect-data true" \
             "set ftp:ssl-auth TLS"
     else
-        # 普通 FTP / SFTP 都不需要这几行
         :
     fi
 }
@@ -352,10 +370,12 @@ browse_ftp_with_account() {
     while true; do
         clear
         local proto_label="${FTP_PROTO:-ftp}"
+        local type_label
+        type_label="$(proto_to_type "$proto_label")"
         echo "======================================="
         echo "🔍 远程浏览 / 下载 / 删除"
         echo "======================================="
-        echo "当前账号：$ACCOUNT_ID  ($FTP_USER@$FTP_HOST:$FTP_PORT, 协议：$proto_label)"
+        echo "当前账号：$ACCOUNT_ID  ($type_label, $FTP_USER@$FTP_HOST:$FTP_PORT)"
         echo
         echo "1) 📁 列出某个远程目录内容"
         echo "2) 📥 下载远程文件到本地"
@@ -561,7 +581,7 @@ ftp_account_menu() {
     while true; do
         clear
         echo "======================================="
-        echo "📂 FTP/SFTP 账号管理"
+        echo "📂 账号管理"
         echo "======================================="
         echo "当前账号数量：$(get_ftp_count)"
         echo
@@ -597,8 +617,11 @@ run_backup() {
         return 1
     fi
 
+    local type_label
+    type_label="$(proto_to_type "${FTP_PROTO:-ftp}")"
+
     echo "🚀 开始备份："
-    echo "  👤 账号：$ACCOUNT_ID ($FTP_USER@$FTP_HOST:$FTP_PORT, 协议：${FTP_PROTO:-ftp})"
+    echo "  👤 账号：$ACCOUNT_ID ($type_label, $FTP_USER@$FTP_HOST:$FTP_PORT)"
     echo "  📁 本地路径：$LOCAL_PATH"
     echo "  📂 远程目标目录：$REMOTE_DIR"
 
@@ -667,7 +690,7 @@ list_cron_jobs() {
     lines=$(crontab -l 2>/dev/null | grep "$TAG" || true)
 
     if [[ -z "$lines" ]]; then
-        echo "ℹ️  当前没有任何 FTP/SFTP 备份定时任务。"
+        echo "ℹ️  当前没有任何备份定时任务。"
         pause
         return
     fi
@@ -859,7 +882,7 @@ uninstall_all() {
 show_menu() {
     clear
     echo "======================================="
-    echo "🌐 FTP/SFTP 备份工具（多账号版）"
+    echo "🌐 FTP/FTPS/SFTP 备份工具（多账号版）"
     echo "======================================="
     echo
     local count
