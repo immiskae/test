@@ -754,7 +754,8 @@ add_backup_job() {
             ;;
     esac
 
-    add_cron_job("$CRON_EXPR" "$LOCAL_PATH" "$REMOTE_DIR" "$ACCOUNT_ID")
+    add_cron_job "$CRON_EXPR" "$LOCAL_PATH" "$REMOTE_DIR" "$ACCOUNT_ID"
+
 
     echo
     read -rp "⚡ 是否立即执行一次此备份任务？(Y/n)： " run_now
