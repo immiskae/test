@@ -133,7 +133,6 @@ load_ftp_account() {
     FTP_PROTO="${FTP_PROTO:-ftp}"
 }
 
-
 proto_to_type() {
     local proto="$1"
     case "$proto" in
@@ -151,9 +150,9 @@ add_ftp_account() {
 
     # 1️⃣ 先选协议类型
     echo "🔐 请选择连接类型："
-    echo "  1) FTP"
-    echo "  2) FTPS"
-    echo "  3) SFTP"
+    echo "  1) FTP "
+    echo "  2) FTPS "
+    echo "  3) SFTP "
     read -rp "👉 请输入选项编号（默认 1）： " proto_choice
     case "$proto_choice" in
         2) FTP_PROTO="ftps" ;;
@@ -194,12 +193,17 @@ add_ftp_account() {
     read -rp "👤 用户名： " FTP_USER
     read -rp "🔒 密码： " FTP_PASS
 
+    # 为了能安全写进双引号里，需要先转义 \ " $
+    ESCAPED_PASS=${FTP_PASS//\\/\\\\}    # 先转义反斜杠 \
+    ESCAPED_PASS=${ESCAPED_PASS//\"/\\\"} # 再转义双引号 "
+    ESCAPED_PASS=${ESCAPED_PASS//$/\\$}   # 最后转义美元符号 $
+
     cat > "$file" <<EOF
 ACCOUNT_ID="$ACCOUNT_ID"
 FTP_HOST="$FTP_HOST"
 FTP_PORT="$FTP_PORT"
 FTP_USER="$FTP_USER"
-FTP_PASS="$FTP_PASS"
+FTP_PASS="$ESCAPED_PASS"
 FTP_PROTO="$FTP_PROTO"
 EOF
 
@@ -347,6 +351,20 @@ build_ssl_lines() {
     fi
 }
 
+# 小工具：SFTP 专用配置（自动确认 host key + 基本超时）
+build_sftp_lines() {
+    local proto="$1"
+    if [[ "$proto" == "sftp" ]]; then
+        printf '%s\n' \
+            "set sftp:auto-confirm yes" \
+            "set net:timeout 15" \
+            "set net:max-retries 2" \
+            "set net:persist-retries 0"
+    else
+        :
+    fi
+}
+
 # 根据协议决定 lftp 连接目标
 # ftp / ftps: 直接用主机名
 # sftp: 使用 sftp://host
@@ -398,6 +416,7 @@ browse_ftp_with_account() {
                 echo "📋 $REMOTE_DIR 下的内容："
                 echo "────────────────────────────────"
                 SSL_LINES="$(build_ssl_lines "$FTP_PROTO")"
+                SFTP_LINES="$(build_sftp_lines "$FTP_PROTO")"
                 LFTP_TARGET="$(get_lftp_target "$FTP_PROTO" "$FTP_HOST")"
                 SSL_VERIFY_LINE=""
                 if [[ "$FTP_PROTO" != "sftp" ]]; then
@@ -406,6 +425,7 @@ browse_ftp_with_account() {
 lftp -u "$FTP_USER","$FTP_PASS" -p "$FTP_PORT" "$LFTP_TARGET" <<EOF | awk '!($NF=="." || $NF=="..")'
 $SSL_VERIFY_LINE
 $SSL_LINES
+$SFTP_LINES
 cd "$REMOTE_DIR" || cd .
 ls
 bye
@@ -430,6 +450,7 @@ EOF
                 case "$yn_dl" in
                     y|Y)
                         SSL_LINES="$(build_ssl_lines "$FTP_PROTO")"
+                        SFTP_LINES="$(build_sftp_lines "$FTP_PROTO")"
                         LFTP_TARGET="$(get_lftp_target "$FTP_PROTO" "$FTP_HOST")"
                         SSL_VERIFY_LINE=""
                         if [[ "$FTP_PROTO" != "sftp" ]]; then
@@ -438,6 +459,7 @@ EOF
 lftp -u "$FTP_USER","$FTP_PASS" -p "$FTP_PORT" "$LFTP_TARGET" <<EOF
 $SSL_VERIFY_LINE
 $SSL_LINES
+$SFTP_LINES
 cd "$RDIR" || exit 1
 get "$RFN" -o "$LDIR/$RFN"
 bye
@@ -471,6 +493,7 @@ EOF
                 case "$yn_dir" in
                     y|Y)
                         SSL_LINES="$(build_ssl_lines "$FTP_PROTO")"
+                        SFTP_LINES="$(build_sftp_lines "$FTP_PROTO")"
                         LFTP_TARGET="$(get_lftp_target "$FTP_PROTO" "$FTP_HOST")"
                         SSL_VERIFY_LINE=""
                         if [[ "$FTP_PROTO" != "sftp" ]]; then
@@ -479,6 +502,7 @@ EOF
 lftp -u "$FTP_USER","$FTP_PASS" -p "$FTP_PORT" "$LFTP_TARGET" <<EOF
 $SSL_VERIFY_LINE
 $SSL_LINES
+$SFTP_LINES
 mirror "$RDIR" "$LDIR"
 bye
 EOF
@@ -507,6 +531,7 @@ EOF
                 case "$yn" in
                     y|Y)
                         SSL_LINES="$(build_ssl_lines "$FTP_PROTO")"
+                        SFTP_LINES="$(build_sftp_lines "$FTP_PROTO")"
                         LFTP_TARGET="$(get_lftp_target "$FTP_PROTO" "$FTP_HOST")"
                         SSL_VERIFY_LINE=""
                         if [[ "$FTP_PROTO" != "sftp" ]]; then
@@ -515,6 +540,7 @@ EOF
 lftp -u "$FTP_USER","$FTP_PASS" -p "$FTP_PORT" "$LFTP_TARGET" <<EOF
 $SSL_VERIFY_LINE
 $SSL_LINES
+$SFTP_LINES
 cd "$REMOTE_DIR" || exit 1
 rm "$REMOTE_FILE"
 bye
@@ -543,6 +569,7 @@ EOF
                 case "$yn2" in
                     y|Y)
                         SSL_LINES="$(build_ssl_lines "$FTP_PROTO")"
+                        SFTP_LINES="$(build_sftp_lines "$FTP_PROTO")"
                         LFTP_TARGET="$(get_lftp_target "$FTP_PROTO" "$FTP_HOST")"
                         SSL_VERIFY_LINE=""
                         if [[ "$FTP_PROTO" != "sftp" ]]; then
@@ -551,6 +578,7 @@ EOF
 lftp -u "$FTP_USER","$FTP_PASS" -p "$FTP_PORT" "$LFTP_TARGET" <<EOF
 $SSL_VERIFY_LINE
 $SSL_LINES
+$SFTP_LINES
 rm -r "$REMOTE_DIR"
 bye
 EOF
@@ -627,6 +655,7 @@ run_backup() {
     echo "  📂 远程目标目录：$REMOTE_DIR"
 
     SSL_LINES="$(build_ssl_lines "$FTP_PROTO")"
+    SFTP_LINES="$(build_sftp_lines "$FTP_PROTO")"
     LFTP_TARGET="$(get_lftp_target "$FTP_PROTO" "$FTP_HOST")"
     SSL_VERIFY_LINE=""
     if [[ "$FTP_PROTO" != "sftp" ]]; then
@@ -638,6 +667,7 @@ run_backup() {
 lftp -u "$FTP_USER","$FTP_PASS" -p "$FTP_PORT" "$LFTP_TARGET" <<EOF
 $SSL_VERIFY_LINE
 $SSL_LINES
+$SFTP_LINES
 mkdir -p "$REMOTE_DIR"
 mirror -R "$LOCAL_PATH" "$REMOTE_DIR"
 bye
@@ -649,6 +679,7 @@ EOF
 lftp -u "$FTP_USER","$FTP_PASS" -p "$FTP_PORT" "$LFTP_TARGET" <<EOF
 $SSL_VERIFY_LINE
 $SSL_LINES
+$SFTP_LINES
 mkdir -p "$REMOTE_DIR"
 cd "$REMOTE_DIR"
 put "$LOCAL_PATH" -o "$filename"
