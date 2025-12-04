@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 
-# ===================== 基本变量 =====================
 CONFIG_DIR="$HOME/.ftp_backup_tool"
 ACCOUNTS_DIR="$CONFIG_DIR/accounts"
 CONFIG_FILE="$CONFIG_DIR/ftp.conf"
@@ -14,7 +13,6 @@ INSTALL_PATH="/root/back.sh"
 
 mkdir -p "$ACCOUNTS_DIR"
 
-# ===================== 通用工具函数 =====================
 command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
@@ -28,7 +26,6 @@ normalize_script_path() {
             elif command_exists wget; then
                 wget -qO "$INSTALL_PATH" "$SCRIPT_URL" || cat "$RAW_SCRIPT_PATH" > "$INSTALL_PATH"
             else
-                # 没有 curl / wget，就直接把当前脚本内容拷贝过去
                 cat "$RAW_SCRIPT_PATH" > "$INSTALL_PATH"
             fi
             chmod +x "$INSTALL_PATH"
@@ -45,7 +42,6 @@ pause() {
     read -rp "🔸 按回车键继续..." _
 }
 
-# ensure_command <cmd> <deb_pkg> <rhel_pkg> <other_pkg>
 ensure_command() {
     local cmd="$1"
     local deb_pkg="$2"
@@ -59,17 +55,14 @@ ensure_command() {
     echo "⚙️  未检测到依赖：$cmd，尝试自动安装..."
 
     if command_exists apt-get; then
-        # Debian / Ubuntu
         local pkg="${deb_pkg:-$cmd}"
         echo "📦 使用 apt-get 安装：$pkg"
         sudo apt-get update && sudo apt-get install -y "$pkg"
     elif command_exists yum; then
-        # CentOS / AlmaLinux / Rocky
         local pkg="${rhel_pkg:-$cmd}"
         echo "📦 使用 yum 安装：$pkg"
         sudo yum install -y "$pkg"
     elif command_exists dnf; then
-        # 新版 RHEL 系
         local pkg="${rhel_pkg:-$cmd}"
         echo "📦 使用 dnf 安装：$pkg"
         sudo dnf install -y "$pkg"
@@ -97,12 +90,9 @@ ensure_command() {
 
 check_dependencies() {
     ensure_command lftp lftp lftp lftp || exit 1
-
-    # crontab：Debian 系 cron，RHEL 系 cronie
     ensure_command crontab cron cronie cron || true
 }
 
-# ===================== 账号管理 =====================
 is_ftp_configured() {
     shopt -s nullglob
     local files=("$ACCOUNTS_DIR"/*.conf)
@@ -124,9 +114,7 @@ load_ftp_account() {
         echo "❌ 找不到账号配置：$account_id"
         return 1
     fi
-    # shellcheck disable=SC1090
     source "$file"
-    # 兼容旧配置：默认使用 ftp
     FTP_PROTO="${FTP_PROTO:-ftp}"
 }
 
@@ -145,7 +133,6 @@ add_ftp_account() {
     echo "➕ 新增 FTP/SFTP 账号"
     echo "────────────────────────────────"
 
-    # 1️⃣ 先选协议类型
     echo "🔐 请选择连接类型："
     echo "  1) FTP"
     echo "  2) FTPS"
@@ -159,7 +146,6 @@ add_ftp_account() {
     local TYPE_LABEL
     TYPE_LABEL="$(proto_to_type "$FTP_PROTO")"
 
-    # 2️⃣ 起一个账号名字
     read -rp "📝 为此账号起一个名称（例如 main、backup1）： " ACCOUNT_ID
     ACCOUNT_ID="${ACCOUNT_ID// /_}"
 
@@ -174,10 +160,8 @@ add_ftp_account() {
         echo "⚠️  已存在同名账号配置，将覆盖该账号。"
     fi
 
-    # 3️⃣ 填主机
     read -rp "🌐 远程主机 (例如 ftp.example.com 或 sftp.example.com)： " FTP_HOST
 
-    # 4️⃣ 端口默认值根据类型来
     local default_port
     case "$FTP_PROTO" in
         sftp) default_port=22 ;;
@@ -186,14 +170,12 @@ add_ftp_account() {
     read -rp "🔢 远程端口 (默认 $default_port，回车使用默认)： " FTP_PORT
     FTP_PORT=${FTP_PORT:-$default_port}
 
-    # 5️⃣ 用户名 & 密码
     read -rp "👤 用户名： " FTP_USER
     read -rp "🔒 密码： " FTP_PASS
 
-    # 为了能安全写进双引号里，需要先转义 \ " $
-    ESCAPED_PASS=${FTP_PASS//\\/\\\\}   
-    ESCAPED_PASS=${ESCAPED_PASS//\"/\\\"} 
-    ESCAPED_PASS=${ESCAPED_PASS//$/\\$} 
+    ESCAPED_PASS=${FTP_PASS//\\/\\\\}
+    ESCAPED_PASS=${ESCAPED_PASS//\"/\\\"}
+    ESCAPED_PASS=${ESCAPED_PASS//$/\\$}
 
     cat > "$file" <<EOF
 ACCOUNT_ID="$ACCOUNT_ID"
@@ -226,7 +208,6 @@ show_ftp_accounts() {
 
     local i=1
     for f in "${files[@]}"; do
-        # shellcheck disable=SC1090
         source "$f"
         local proto="${FTP_PROTO:-ftp}"
         local type
@@ -256,7 +237,6 @@ delete_ftp_account() {
     local i=1
     declare -a ACCOUNT_IDS
     for f in "${files[@]}"; do
-        # shellcheck disable=SC1090
         source "$f"
         ACCOUNT_IDS[$i]="$ACCOUNT_ID"
         local type
@@ -314,7 +294,6 @@ select_ftp_account() {
     local i=1
     declare -a ACCOUNT_IDS
     for f in "${files[@]}"; do
-        # shellcheck disable=SC1090
         source "$f"
         local proto="${FTP_PROTO:-ftp}"
         local type
@@ -335,7 +314,6 @@ select_ftp_account() {
     return 0
 }
 
-
 build_ssl_lines() {
     local proto="$1"
     if [[ "$proto" == "ftps" ]]; then
@@ -347,7 +325,6 @@ build_ssl_lines() {
         :
     fi
 }
-
 
 build_sftp_lines() {
     local proto="$1"
@@ -429,7 +406,7 @@ EOF
                 pause
                 ;;
             2)
-                read -rp "📂 请输入远程文件所在目录（例如 /backup/www）： " RDIR
+                read -rp "📂 请输入远程文件所在目录（例如 /backup/www，账号根目录请输入 /）： " RDIR
                 read -rp "📄 请输入远程文件名（例如 index.html）： " RFN
                 read -rp "📁 请输入下载到本地的目录（例如 /root/download）： " LDIR
 
@@ -441,21 +418,35 @@ EOF
 
                 mkdir -p "$LDIR"
 
-                read -rp "⚠️ 确认下载文件 $RDIR/$RFN 到本地 $LDIR 并自动覆盖同名文件吗？(y/N)： " yn_dl
+                if [[ "$RDIR" == "/" ]]; then
+                    NORMALIZED_RDIR=""
+                    DISPLAY_RDIR="/"
+                else
+                    NORMALIZED_RDIR="${RDIR%/}"
+                    DISPLAY_RDIR="$NORMALIZED_RDIR"
+                fi
+
+                read -rp "⚠️ 确认下载文件 $DISPLAY_RDIR/$RFN 到本地 $LDIR 并自动覆盖同名文件吗？(y/N)： " yn_dl
                 case "$yn_dl" in
                     y|Y)
-                        SSL_LINES="$(build_ssl_lines("$FTP_PROTO") )"
+                        SSL_LINES="$(build_ssl_lines "$FTP_PROTO")"
                         SFTP_LINES="$(build_sftp_lines "$FTP_PROTO")"
                         LFTP_TARGET="$(get_lftp_target "$FTP_PROTO" "$FTP_HOST")"
                         SSL_VERIFY_LINE=""
                         if [[ "$FTP_PROTO" != "sftp" ]]; then
                             SSL_VERIFY_LINE="set ssl:verify-certificate no"
                         fi
+
+                        if [[ -n "$NORMALIZED_RDIR" ]]; then
+                            CD_CMD="cd \"$NORMALIZED_RDIR\" || exit 1"
+                        else
+                            CD_CMD=""
+                        fi
 lftp -u "$FTP_USER","$FTP_PASS" -p "$FTP_PORT" "$LFTP_TARGET" <<EOF
 $SSL_VERIFY_LINE
 $SSL_LINES
 $SFTP_LINES
-cd "$RDIR" || exit 1
+$CD_CMD
 get "$RFN" -o "$LDIR/$RFN"
 bye
 EOF
@@ -473,7 +464,7 @@ EOF
                 esac
                 ;;
             3)
-                read -rp "📂 请输入要下载的远程目录路径（例如 /test）： " RDIR
+                read -rp "📂 请输入要下载的远程目录路径（例如 /test,根目录请输入 /）： " RDIR
                 read -rp "📁 请输入下载到本地的目录（例如 /root/download）： " LDIR
 
                 if [[ -z "$RDIR" || -z "$LDIR" ]]; then
@@ -484,7 +475,15 @@ EOF
 
                 mkdir -p "$LDIR"
 
-                read -rp "⚠️ 确认 下载整个目录 $RDIR 到本地 $LDIR 吗？(y/N)： " yn_dir
+                if [[ "$RDIR" == "/" ]]; then
+                    SRC_DIR="."
+                    DISPLAY_SRC="/"
+                else
+                    SRC_DIR="${RDIR%/}"
+                    DISPLAY_SRC="$SRC_DIR"
+                fi
+
+                read -rp "⚠️ 确认下载整个目录 $DISPLAY_SRC 到本地 $LDIR 吗？(y/N)： " yn_dir
                 case "$yn_dir" in
                     y|Y)
                         SSL_LINES="$(build_ssl_lines "$FTP_PROTO")"
@@ -498,7 +497,7 @@ lftp -u "$FTP_USER","$FTP_PASS" -p "$FTP_PORT" "$LFTP_TARGET" <<EOF
 $SSL_VERIFY_LINE
 $SSL_LINES
 $SFTP_LINES
-mirror "$RDIR" "$LDIR"
+mirror "$SRC_DIR" "$LDIR"
 bye
 EOF
                         if [[ $? -eq 0 ]]; then
@@ -514,46 +513,46 @@ EOF
                         ;;
                 esac
                 ;;
-                    4)
-            read -rp "📂 请输入文件所在远程目录（例如 /backup/www，留空为根目录）： " REMOTE_DIR
-            read -rp "📄 请输入要删除的文件名（例如 index.html）： " REMOTE_FILE
+            4)
+                read -rp "📂 请输入文件所在远程目录（例如 /backup/www,根目录请输入 /）： " REMOTE_DIR
+                read -rp "📄 请输入要删除的文件名（例如 index.html）： " REMOTE_FILE
 
-            # 只要求文件名非空，目录可以为空
-            if [[ -z "$REMOTE_FILE" ]]; then
-                echo "❌ 文件名不能为空。"
-                pause
-                continue
-            fi
+                if [[ -z "$REMOTE_FILE" ]]; then
+                    echo "❌ 文件名不能为空。"
+                    pause
+                    continue
+                fi
 
-            # 规范化目录：
-            # - 留空 或 "/" => 视为账号根目录（不再拼目录，避免 // 文件名）
-            # - 其它目录 => 去掉末尾多余的 "/"
-            if [[ -z "$REMOTE_DIR" || "$REMOTE_DIR" == "/" ]]; then
-                NORMALIZED_DIR=""
-                DISPLAY_PATH="/$REMOTE_FILE"
-            else
-                NORMALIZED_DIR="${REMOTE_DIR%/}"
-                DISPLAY_PATH="$NORMALIZED_DIR/$REMOTE_FILE"
-            fi
+                if [[ -z "$REMOTE_DIR" ]]; then
+                    echo "❌ 目录不能为空（根目录，请输入 /）。"
+                    pause
+                    continue
+                fi
 
-            read -rp "⚠️ 确认要删除文件 $DISPLAY_PATH 吗？(y/N)： " yn
-            case "$yn" in
-                y|Y)
-                    SSL_LINES="$(build_ssl_lines "$FTP_PROTO")"
-                    SFTP_LINES="$(build_sftp_lines "$FTP_PROTO")"
-                    LFTP_TARGET="$(get_lftp_target "$FTP_PROTO" "$FTP_HOST")"
-                    SSL_VERIFY_LINE=""
-                    if [[ "$FTP_PROTO" != "sftp" ]]; then
-                        SSL_VERIFY_LINE="set ssl:verify-certificate no"
-                    fi
+                if [[ "$REMOTE_DIR" == "/" ]]; then
+                    NORMALIZED_DIR=""
+                    DISPLAY_PATH="/$REMOTE_FILE"
+                else
+                    NORMALIZED_DIR="${REMOTE_DIR%/}"
+                    DISPLAY_PATH="$NORMALIZED_DIR/$REMOTE_FILE"
+                fi
 
-                    # 根目录就不 cd，保持在登录默认目录
-                    if [[ -n "$NORMALIZED_DIR" ]]; then
-                        CD_CMD="cd \"$NORMALIZED_DIR\" || exit 1"
-                    else
-                        CD_CMD=""
-                    fi
+                read -rp "⚠️ 确认要删除文件 $DISPLAY_PATH 吗？(y/N)： " yn
+                case "$yn" in
+                    y|Y)
+                        SSL_LINES="$(build_ssl_lines "$FTP_PROTO")"
+                        SFTP_LINES="$(build_sftp_lines "$FTP_PROTO")"
+                        LFTP_TARGET="$(get_lftp_target "$FTP_PROTO" "$FTP_HOST")"
+                        SSL_VERIFY_LINE=""
+                        if [[ "$FTP_PROTO" != "sftp" ]]; then
+                            SSL_VERIFY_LINE="set ssl:verify-certificate no"
+                        fi
 
+                        if [[ -n "$NORMALIZED_DIR" ]]; then
+                            CD_CMD="cd \"$NORMALIZED_DIR\" || exit 1"
+                        else
+                            CD_CMD=""
+                        fi
 lftp -u "$FTP_USER","$FTP_PASS" -p "$FTP_PORT" "$LFTP_TARGET" <<EOF
 $SSL_VERIFY_LINE
 $SSL_LINES
@@ -562,27 +561,33 @@ $CD_CMD
 rm "$REMOTE_FILE"
 bye
 EOF
-                    if [[ $? -eq 0 ]]; then
-                        echo "✅ 已删除远程文件：$DISPLAY_PATH"
-                    else
-                        echo "❌ 删除失败，请检查路径和权限。"
-                    fi
-                    pause
-                    ;;
-                *)
-                    echo "ℹ️ 已取消删除。"
-                    pause
-                    ;;
-            esac
-            ;;
+                        if [[ $? -eq 0 ]]; then
+                            echo "✅ 已删除远程文件：$DISPLAY_PATH"
+                        else
+                            echo "❌ 删除失败，请检查路径和权限。"
+                        fi
+                        pause
+                        ;;
+                    *)
+                        echo "ℹ️ 已取消删除。"
+                        pause
+                        ;;
+                esac
+                ;;
             5)
-                read -rp "📂 请输入要删除的远程目录（例如 /backup/tmp）： " REMOTE_DIR
+                read -rp "📂 请输入要删除的远程目录（例如 /backup/tmp，账号根目录不可删除）： " REMOTE_DIR
                 if [[ -z "$REMOTE_DIR" ]]; then
                     echo "❌ 远程目录不能为空。"
                     pause
                     continue
                 fi
-                read -rp "⚠️ 确认**删除整个目录** $REMOTE_DIR 吗？此操作不可恢复！(y/N)： " yn2
+                if [[ "$REMOTE_DIR" == "/" ]]; then
+                    echo "❌ 出于安全考虑，不支持直接删除账号根目录，请指定子目录。"
+                    pause
+                    continue
+                fi
+                NORMALIZED_DIR="${REMOTE_DIR%/}"
+                read -rp "⚠️ 确认删除整个目录 $NORMALIZED_DIR 吗？此操作不可恢复！(y/N)： " yn2
                 case "$yn2" in
                     y|Y)
                         SSL_LINES="$(build_ssl_lines "$FTP_PROTO")"
@@ -596,11 +601,11 @@ lftp -u "$FTP_USER","$FTP_PASS" -p "$FTP_PORT" "$LFTP_TARGET" <<EOF
 $SSL_VERIFY_LINE
 $SSL_LINES
 $SFTP_LINES
-rm -r "$REMOTE_DIR"
+rm -r "$NORMALIZED_DIR"
 bye
 EOF
                         if [[ $? -eq 0 ]]; then
-                            echo "✅ 已删除远程目录：$REMOTE_DIR"
+                            echo "✅ 已删除远程目录：$NORMALIZED_DIR"
                         else
                             echo "❌ 删除失败，请检查路径和权限。"
                         fi
@@ -650,7 +655,6 @@ ftp_account_menu() {
     done
 }
 
-# ===================== 实际备份逻辑 =====================
 run_backup() {
     local ACCOUNT_ID="$1"
     local LOCAL_PATH="$2"
@@ -680,7 +684,6 @@ run_backup() {
     fi
 
     if [[ -d "$LOCAL_PATH" ]]; then
-        # 目录：mirror -R
 lftp -u "$FTP_USER","$FTP_PASS" -p "$FTP_PORT" "$LFTP_TARGET" <<EOF
 $SSL_VERIFY_LINE
 $SSL_LINES
@@ -690,7 +693,6 @@ mirror -R "$LOCAL_PATH" "$REMOTE_DIR"
 bye
 EOF
     else
-        # 文件：put
         local filename
         filename="$(basename "$LOCAL_PATH")"
 lftp -u "$FTP_USER","$FTP_PASS" -p "$FTP_PORT" "$LFTP_TARGET" <<EOF
@@ -712,14 +714,12 @@ EOF
     fi
 }
 
-# ===================== 定时任务相关 =====================
 add_cron_job() {
     local CRON_EXPR="$1"
     local LOCAL_PATH="$2"
     local REMOTE_DIR="$3"
     local ACCOUNT_ID="$4"
 
-    # 转义 "
     LOCAL_ESC=${LOCAL_PATH//\"/\\\"}
     REMOTE_ESC=${REMOTE_DIR//\"/\\\"}
 
@@ -761,7 +761,6 @@ list_cron_jobs() {
                 echo "❌ 输入编号无效。"
             else
                 local target="${JOBS[$choice]}"
-                # 去掉前 5 个字段（cron 表达式），剩下就是命令
                 local cmd_part
                 cmd_part=$(echo "$target" | awk '{ $1=""; $2=""; $3=""; $4=""; $5=""; sub(/^ +/, ""); print }')
                 echo "⚡ 正在立即执行：$cmd_part"
@@ -841,7 +840,6 @@ add_backup_job() {
         return
     fi
 
-    # 选择账号
     CHOSEN_ACCOUNT_ID=""
     select_ftp_account || { pause; return; }
     local ACCOUNT_ID="$CHOSEN_ACCOUNT_ID"
@@ -899,7 +897,6 @@ uninstall_all() {
     read -rp "⚠️  确定要卸载吗？这会删除所有账号配置、备份任务和脚本本体。(y/N)： " ans
     case "$ans" in
         y|Y)
-            # 删除定时任务
             if command_exists crontab; then
                 local current
                 current=$(crontab -l 2>/dev/null || true)
@@ -908,10 +905,8 @@ uninstall_all() {
                 fi
             fi
 
-            # 删除配置目录
             rm -rf "$CONFIG_DIR"
 
-            # 删除脚本本体
             if [[ -f "$SCRIPT_PATH" ]]; then
                 rm -f "$SCRIPT_PATH"
             fi
@@ -927,7 +922,6 @@ uninstall_all() {
     pause
 }
 
-# ===================== 主菜单 =====================
 show_menu() {
     clear
     echo "======================================="
@@ -951,7 +945,6 @@ show_menu() {
     echo
     read -rp "👉 请输入选项编号： " choice
 
-    # 没有任何账号时，只允许进账号管理 / 卸载 / 退出
     if ! is_ftp_configured && [[ "$choice" != "1" && "$choice" != "5" && "$choice" != "0" ]]; then
         echo
         echo "⚠️  当前尚未配置任何账号，请先进入“管理账号”添加。"
@@ -970,15 +963,11 @@ show_menu() {
     esac
 }
 
-# ===================== 入口逻辑 =====================
-
-# crontab 调用：bash back.sh run <ACCOUNT_ID> <LOCAL_PATH> <REMOTE_DIR>
 if [[ "$1" == "run" ]]; then
     run_backup "$2" "$3" "$4"
     exit $?
 fi
 
-# 交互模式
 check_dependencies
 
 while true; do
