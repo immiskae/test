@@ -514,45 +514,67 @@ EOF
                         ;;
                 esac
                 ;;
-            4)
-                read -rp "📂 请输入文件所在远程目录（例如 /backup/www）： " REMOTE_DIR
-                read -rp "📄 请输入要删除的文件名（例如 index.html）： " REMOTE_FILE
-                if [[ -z "$REMOTE_DIR" || -z "$REMOTE_FILE" ]]; then
-                    echo "❌ 目录和文件名都不能为空。"
-                    pause
-                    continue
-                fi
-                read -rp "⚠️ 确认要删除文件 $REMOTE_DIR/$REMOTE_FILE 吗？(y/N)： " yn
-                case "$yn" in
-                    y|Y)
-                        SSL_LINES="$(build_ssl_lines "$FTP_PROTO")"
-                        SFTP_LINES="$(build_sftp_lines "$FTP_PROTO")"
-                        LFTP_TARGET="$(get_lftp_target "$FTP_PROTO" "$FTP_HOST")"
-                        SSL_VERIFY_LINE=""
-                        if [[ "$FTP_PROTO" != "sftp" ]]; then
-                            SSL_VERIFY_LINE="set ssl:verify-certificate no"
-                        fi
+                    4)
+            read -rp "📂 请输入文件所在远程目录（例如 /backup/www，留空为根目录）： " REMOTE_DIR
+            read -rp "📄 请输入要删除的文件名（例如 index.html）： " REMOTE_FILE
+
+            # 只要求文件名非空，目录可以为空
+            if [[ -z "$REMOTE_FILE" ]]; then
+                echo "❌ 文件名不能为空。"
+                pause
+                continue
+            fi
+
+            # 规范化目录：
+            # - 留空 或 "/" => 视为账号根目录（不再拼目录，避免 // 文件名）
+            # - 其它目录 => 去掉末尾多余的 "/"
+            if [[ -z "$REMOTE_DIR" || "$REMOTE_DIR" == "/" ]]; then
+                NORMALIZED_DIR=""
+                DISPLAY_PATH="/$REMOTE_FILE"
+            else
+                NORMALIZED_DIR="${REMOTE_DIR%/}"
+                DISPLAY_PATH="$NORMALIZED_DIR/$REMOTE_FILE"
+            fi
+
+            read -rp "⚠️ 确认要删除文件 $DISPLAY_PATH 吗？(y/N)： " yn
+            case "$yn" in
+                y|Y)
+                    SSL_LINES="$(build_ssl_lines "$FTP_PROTO")"
+                    SFTP_LINES="$(build_sftp_lines "$FTP_PROTO")"
+                    LFTP_TARGET="$(get_lftp_target "$FTP_PROTO" "$FTP_HOST")"
+                    SSL_VERIFY_LINE=""
+                    if [[ "$FTP_PROTO" != "sftp" ]]; then
+                        SSL_VERIFY_LINE="set ssl:verify-certificate no"
+                    fi
+
+                    # 根目录就不 cd，保持在登录默认目录
+                    if [[ -n "$NORMALIZED_DIR" ]]; then
+                        CD_CMD="cd \"$NORMALIZED_DIR\" || exit 1"
+                    else
+                        CD_CMD=""
+                    fi
+
 lftp -u "$FTP_USER","$FTP_PASS" -p "$FTP_PORT" "$LFTP_TARGET" <<EOF
 $SSL_VERIFY_LINE
 $SSL_LINES
 $SFTP_LINES
-cd "$REMOTE_DIR" || exit 1
+$CD_CMD
 rm "$REMOTE_FILE"
 bye
 EOF
-                        if [[ $? -eq 0 ]]; then
-                            echo "✅ 已删除远程文件：$REMOTE_DIR/$REMOTE_FILE"
-                        else
-                            echo "❌ 删除失败，请检查路径和权限。"
-                        fi
-                        pause
-                        ;;
-                    *)
-                        echo "ℹ️ 已取消删除。"
-                        pause
-                        ;;
-                esac
-                ;;
+                    if [[ $? -eq 0 ]]; then
+                        echo "✅ 已删除远程文件：$DISPLAY_PATH"
+                    else
+                        echo "❌ 删除失败，请检查路径和权限。"
+                    fi
+                    pause
+                    ;;
+                *)
+                    echo "ℹ️ 已取消删除。"
+                    pause
+                    ;;
+            esac
+            ;;
             5)
                 read -rp "📂 请输入要删除的远程目录（例如 /backup/tmp）： " REMOTE_DIR
                 if [[ -z "$REMOTE_DIR" ]]; then
