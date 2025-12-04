@@ -133,6 +133,7 @@ load_ftp_account() {
     FTP_PROTO="${FTP_PROTO:-ftp}"
 }
 
+
 proto_to_type() {
     local proto="$1"
     case "$proto" in
