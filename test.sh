@@ -145,7 +145,7 @@ proto_to_type() {
 
 add_ftp_account() {
     echo "────────────────────────────────"
-    echo "➕ 新增 FTP/FTPS/SFTP 账号"
+    echo "➕ 新增 FTP/SFTP 账号"
     echo "────────────────────────────────"
 
     # 1️⃣ 先选协议类型
@@ -882,7 +882,7 @@ uninstall_all() {
 show_menu() {
     clear
     echo "======================================="
-    echo "🌐 FTP/FTPS/SFTP 备份工具（多账号版）"
+    echo "🌐 FTP/SFTP 备份工具（多账号版）"
     echo "======================================="
     echo
     local count
